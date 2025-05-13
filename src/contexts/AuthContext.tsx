@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { ReactNode, Dispatch, SetStateAction } from 'react';
@@ -10,6 +11,7 @@ export interface User {
   email: string;
   name?: string;
   role?: 'student' | 'teacher';
+  avatar?: string;
 }
 
 interface AuthContextType {
@@ -20,7 +22,7 @@ interface AuthContextType {
   login: (email: string, pass: string) => Promise<void>; // pass is unused for mock
   signup: (name: string, email: string, pass: string, role: 'student' | 'teacher') => Promise<void>; // pass is unused for mock
   logout: () => void;
-  updateProfile: (updatedData: Partial<Pick<User, 'name'>> & { newPassword?: string }) => Promise<void>;
+  updateProfile: (updatedData: Partial<Pick<User, 'name' | 'avatar'>> & { newPassword?: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -45,9 +47,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, _pass: string) => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 500)); 
-    // In a real app, you'd fetch the user's role from your backend here
-    const mockUser: User = { id: Date.now().toString(), email, name: email.split('@')[0], role: 'student' }; // Default role or fetch
+    // In a real app, you'd fetch the user's role and other details from your backend here
+    const mockUser: User = { 
+      id: Date.now().toString(), 
+      email, 
+      name: email.split('@')[0], 
+      role: 'student', // Default role or fetch
+      avatar: `https://picsum.photos/seed/${email}/40/40` 
+    };
     setUser(mockUser);
     try {
       localStorage.setItem('mathfluent-user', JSON.stringify(mockUser));
@@ -61,8 +68,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signup = useCallback(async (name: string, email: string, _pass: string, role: 'student' | 'teacher') => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 500)); 
-    const mockUser: User = { id: Date.now().toString(), email, name, role };
+    const mockUser: User = { 
+      id: Date.now().toString(), 
+      email, 
+      name, 
+      role,
+      avatar: `https://picsum.photos/seed/${email}/40/40`
+    };
     setUser(mockUser);
     try {
       localStorage.setItem('mathfluent-user', JSON.stringify(mockUser));
@@ -87,14 +99,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push('/signin');
   }, [router, toast]);
 
-  const updateProfile = useCallback(async (updatedData: Partial<Pick<User, 'name'>> & { newPassword?: string }) => {
+  const updateProfile = useCallback(async (updatedData: Partial<Pick<User, 'name' | 'avatar'>> & { newPassword?: string }) => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API call
     
     if (user) {
       const newUser = { ...user };
       if (updatedData.name) {
         newUser.name = updatedData.name;
+      }
+      if (updatedData.avatar) { // Added avatar update
+        newUser.avatar = updatedData.avatar;
       }
       // Password update would typically involve a backend call and hashing.
       // For this mock, we're not storing/using the password directly after signup/login.
@@ -133,3 +147,4 @@ export function useAuth() {
   }
   return context;
 }
+

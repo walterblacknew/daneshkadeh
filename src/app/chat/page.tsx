@@ -6,18 +6,19 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, UserCircle, PlusCircle, Loader2, MessageSquareText, Hash } from 'lucide-react';
+import { Send, UserCircle, PlusCircle, Loader2, MessageSquareText, Hash, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; // Removed CardDescription as it's not used directly here
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getChatRoomsFromFirestore, sendMessageInRoom, subscribeToRoomMessages } from '@/services/firestoreChat';
 import type { ChatRoom, Message } from '@/types/chat';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Timestamp } from 'firebase/firestore';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-const COMMUNITY_CHAT_ID = 'community'; // This ID should correspond to a document in Firestore if it's a real room
+const COMMUNITY_CHAT_ID = 'community'; 
 const COMMUNITY_CHAT_NAME = 'Community Chat Room';
 
 export default function ChatPage() {
@@ -36,7 +37,6 @@ export default function ChatPage() {
   const unsubscribeMessagesRef = useRef<(() => void) | null>(null);
 
   const fetchRooms = useCallback(async () => {
-    // No need to check isLoggedIn here, as it's handled by the main return
     setIsLoadingRooms(true);
     try {
       const rooms = await getChatRoomsFromFirestore();
@@ -54,26 +54,32 @@ export default function ChatPage() {
   }, [toast]);
 
   useEffect(() => {
-    if (isLoggedIn) { // Fetch rooms only if logged in
+    if (isLoggedIn) { 
       fetchRooms();
     }
   }, [isLoggedIn, fetchRooms]);
   
-  // Subscribe to messages when selectedRoom changes
   useEffect(() => {
     if (unsubscribeMessagesRef.current) {
-      unsubscribeMessagesRef.current(); // Unsubscribe from previous room
+      unsubscribeMessagesRef.current(); 
       unsubscribeMessagesRef.current = null;
     }
 
-    if (selectedRoom?.id && isLoggedIn) { // Check isLoggedIn here too
-      setMessages([]); // Clear previous messages
+    if (selectedRoom?.id && isLoggedIn) { 
+      setMessages([]); 
       const unsubscribe = subscribeToRoomMessages(selectedRoom.id, (updatedMessages) => {
-        setMessages(updatedMessages);
+        // Filter out 'sending' status messages if the real one has arrived
+        const serverMessages = updatedMessages.filter(msg => msg.status !== 'sending');
+        setMessages(prevMessages => {
+          const clientSendingMessages = prevMessages.filter(
+            pm => pm.status === 'sending' && !serverMessages.find(sm => sm.text === pm.text && sm.sender.id === pm.sender.id) // Basic check
+          );
+          return [...serverMessages, ...clientSendingMessages];
+        });
       });
       unsubscribeMessagesRef.current = unsubscribe;
     } else {
-      setMessages([]); // Clear messages if no room selected or not logged in
+      setMessages([]); 
     }
 
     return () => {
@@ -81,7 +87,7 @@ export default function ChatPage() {
         unsubscribeMessagesRef.current();
       }
     };
-  }, [selectedRoom, isLoggedIn]); // Add isLoggedIn dependency
+  }, [selectedRoom, isLoggedIn]); 
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -93,17 +99,39 @@ export default function ChatPage() {
     e.preventDefault();
     if (newMessage.trim() === '' || !user || !selectedRoom || isSending) return;
 
+    const tempId = `temp_${Date.now()}`;
+    const senderInfo = { 
+      id: user.id, 
+      name: user.name || user.email.split('@')[0], 
+      avatar: user.avatar || `https://picsum.photos/seed/${user.email}/40/40` 
+    };
+
+    const optimisticMessage: Message = {
+      id: tempId,
+      text: newMessage,
+      sender: senderInfo,
+      timestamp: new Date(),
+      roomId: selectedRoom.id,
+      status: 'sending',
+    };
+
+    setMessages(prevMessages => [...prevMessages, optimisticMessage]);
+    const messageTextToSend = newMessage;
+    setNewMessage('');
     setIsSending(true);
+
     try {
-      await sendMessageInRoom(
-        selectedRoom.id,
-        { id: user.id, name: user.name || user.email.split('@')[0], avatar: user.avatar || `https://picsum.photos/seed/${user.email}/40/40` },
-        newMessage
-      );
-      setNewMessage('');
+      await sendMessageInRoom(selectedRoom.id, senderInfo, messageTextToSend);
+      setMessages(prev => prev.map(m => m.id === tempId ? {...m, status: 'sent'} : m));
     } catch (error) {
       console.error("Failed to send message:", error);
       toast({ title: "Error", description: "Could not send message.", variant: "destructive" });
+      setMessages(prevMessages => 
+        prevMessages.map(msg => 
+          msg.id === tempId ? { ...msg, status: 'failed' } : msg
+        )
+      );
+      setNewMessage(messageTextToSend);
     } finally {
       setIsSending(false);
     }
@@ -114,6 +142,16 @@ export default function ChatPage() {
     const names = name.split(' ');
     if (names.length === 1) return names[0][0].toUpperCase();
     return names[0][0].toUpperCase() + names[names.length - 1][0].toUpperCase();
+  };
+
+  const formatTimestamp = (timestamp: Message['timestamp']): string => {
+    if (!timestamp) return '';
+    if (typeof (timestamp as Timestamp).toDate === 'function') { // Firestore Timestamp
+      return (timestamp as Timestamp).toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else if (timestamp instanceof Date) { // JavaScript Date
+      return timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return new Date(timestamp.toString()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   if (authLoading) {
@@ -217,14 +255,27 @@ export default function ChatPage() {
                   )}
                   <div className={`p-3 rounded-lg max-w-[70%] ${msg.sender.id === user?.id ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
                     {msg.sender.id !== user?.id && <p className="text-sm font-medium">{msg.sender.name}</p>}
-                    <p className="text-sm">{msg.text}</p>
-                    <p className="text-xs text-muted-foreground/80 mt-1">
-                       {msg.timestamp && (msg.timestamp as Timestamp).toDate ? (msg.timestamp as Timestamp).toDate().toLocaleTimeString() : new Date(msg.timestamp as Date).toLocaleTimeString()}
-                    </p>
+                    <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                    <div className="text-xs text-muted-foreground/80 mt-1 flex items-center">
+                       <span>{formatTimestamp(msg.timestamp)}</span>
+                       {msg.sender.id === user?.id && msg.status === 'sending' && <Loader2 className="h-3 w-3 animate-spin inline-block ml-1" />}
+                       {msg.sender.id === user?.id && msg.status === 'failed' && (
+                         <TooltipProvider>
+                           <Tooltip>
+                             <TooltipTrigger asChild>
+                               <AlertTriangle className="h-3 w-3 text-destructive inline-block ml-1 cursor-pointer" />
+                             </TooltipTrigger>
+                             <TooltipContent>
+                               <p>Failed to send</p>
+                             </TooltipContent>
+                           </Tooltip>
+                         </TooltipProvider>
+                       )}
+                    </div>
                   </div>
                   {msg.sender.id === user?.id && (
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={user.avatar || `https://picsum.photos/seed/${user.email}/40/40`} alt={user.name} data-ai-hint="user avatar"/>
+                      <AvatarImage src={user.avatar || `https://picsum.photos/seed/${user.email}/40/40`} alt={user.name || ''} data-ai-hint="user avatar"/>
                       <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
                     </Avatar>
                   )}
@@ -242,7 +293,7 @@ export default function ChatPage() {
                 disabled={!selectedRoom || isSending}
               />
               <Button type="submit" size="icon" className="bg-accent hover:bg-accent/90" disabled={!selectedRoom || newMessage.trim() === '' || isSending}>
-                {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" /> }
+                {isSending && messages.some(m => m.status === 'sending' && m.text === newMessage) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" /> }
                 <span className="sr-only">Send</span>
               </Button>
             </form>

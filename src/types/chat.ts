@@ -25,9 +25,10 @@ export interface Message {
   id: string; // Firestore document ID or client-generated for display
   text: string;
   sender: MessageSender;
-  timestamp: Timestamp | FieldValue; // Firestore Timestamp or FieldValue for server timestamp
+  timestamp: Timestamp | FieldValue | Date; // Allow Date for optimistic updates
   roomId?: string; // For group chat messages
   dmThreadId?: string; // For direct messages
+  status?: 'sending' | 'failed' | 'sent'; // Optional: for visual feedback on message sending state
 }
 
 export interface PeerUser {

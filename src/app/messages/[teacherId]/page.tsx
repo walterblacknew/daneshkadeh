@@ -1,16 +1,16 @@
 
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowLeft, Loader2, Send, UserCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, Send, UserCircle, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertTitle, AlertDescription as UIDescription } from '@/components/ui/alert'; // Renamed to avoid conflict
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import type { Message, PeerUser } from '@/types/chat';
@@ -21,11 +21,13 @@ import {
   subscribeToDirectMessages 
 } from '@/services/firestoreChat';
 import type { Timestamp } from 'firebase/firestore';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
 
 export default function DirectMessagePage() {
   const params = useParams();
   const router = useRouter();
-  const peerId = params.peerId as string; // Renamed from teacherId
+  const peerId = params.peerId as string; 
   const { user, isLoggedIn, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
 
@@ -44,7 +46,6 @@ export default function DirectMessagePage() {
     }
   }, [authLoading, isLoggedIn, router]);
 
-  // Fetch peer user details
   useEffect(() => {
     if (peerId) {
       setIsLoadingPeerUser(true);
@@ -70,16 +71,23 @@ export default function DirectMessagePage() {
     }
   }, [peerId, toast]);
 
-  // Get or create DM thread and subscribe to messages
   useEffect(() => {
     if (user && peerUser) {
       getOrCreateDirectMessageThreadId(user.id, peerUser.id)
         .then(id => {
           setThreadId(id);
           const unsubscribe = subscribeToDirectMessages(id, (updatedMessages) => {
-            setMessages(updatedMessages);
+            // Filter out 'sending' status messages if the real one has arrived
+            // This assumes server messages don't have 'sending' status
+            const serverMessages = updatedMessages.filter(msg => msg.status !== 'sending');
+            setMessages(prevMessages => {
+              const clientSendingMessages = prevMessages.filter(
+                pm => pm.status === 'sending' && !serverMessages.find(sm => sm.text === pm.text && sm.sender.id === pm.sender.id) // Basic check
+              );
+              return [...serverMessages, ...clientSendingMessages];
+            });
           });
-          return () => unsubscribe(); // Cleanup subscription
+          return () => unsubscribe(); 
         })
         .catch(err => {
           console.error("Failed to get/create DM thread:", err);
@@ -98,17 +106,41 @@ export default function DirectMessagePage() {
     e.preventDefault();
     if (!newMessage.trim() || !user || !threadId || !peerUser || isSending) return;
 
-    setIsSending(true);
+    const tempId = `temp_${Date.now()}`;
+    const senderInfo = { 
+      id: user.id, 
+      name: user.name || user.email.split('@')[0], 
+      avatar: user.avatar || `https://picsum.photos/seed/${user.email}/40/40` 
+    };
+    const optimisticMessage: Message = {
+      id: tempId,
+      text: newMessage,
+      sender: senderInfo,
+      timestamp: new Date(), 
+      dmThreadId: threadId,
+      status: 'sending',
+    };
+
+    setMessages(prevMessages => [...prevMessages, optimisticMessage]);
+    const messageTextToSend = newMessage;
+    setNewMessage(''); 
+    setIsSending(true); 
+
     try {
-      await sendDirectMessage(
-        threadId,
-        { id: user.id, name: user.name || user.email.split('@')[0], avatar: user.avatar || `https://picsum.photos/seed/${user.email}/40/40` },
-        newMessage
-      );
-      setNewMessage('');
+      await sendDirectMessage(threadId, senderInfo, messageTextToSend);
+      // On success, Firestore listener will update. We can remove the 'sending' status or the temp message if needed,
+      // but onSnapshot replacing the array usually handles this.
+      setMessages(prev => prev.map(m => m.id === tempId ? {...m, status: 'sent'} : m));
+
     } catch (error) {
       console.error("Failed to send message:", error);
       toast({ title: "Error", description: "Could not send message.", variant: "destructive" });
+      setMessages(prevMessages => 
+        prevMessages.map(msg => 
+          msg.id === tempId ? { ...msg, status: 'failed' } : msg
+        )
+      );
+      setNewMessage(messageTextToSend); 
     } finally {
       setIsSending(false);
     }
@@ -121,6 +153,17 @@ export default function DirectMessagePage() {
     return names[0][0].toUpperCase() + names[names.length - 1][0].toUpperCase();
   };
 
+  const formatTimestamp = (timestamp: Message['timestamp']): string => {
+    if (!timestamp) return '';
+    if (typeof (timestamp as Timestamp).toDate === 'function') { // Firestore Timestamp
+      return (timestamp as Timestamp).toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else if (timestamp instanceof Date) { // JavaScript Date
+      return timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return new Date(timestamp.toString()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); 
+  };
+
+
   if (authLoading || isLoadingPeerUser) {
     return <div className="flex justify-center items-center min-h-[calc(100vh-200px)]"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
@@ -131,12 +174,12 @@ export default function DirectMessagePage() {
         <Alert variant="default" className="max-w-md">
           <UserCircle className="h-4 w-4" />
           <AlertTitle>Access Denied</AlertTitle>
-          <AlertDescription>
+          <UIDescription>
             You need to be logged in to send messages.
             <div className="mt-4">
               <Button asChild><Link href="/signin">Sign In</Link></Button>
             </div>
-          </AlertDescription>
+          </UIDescription>
         </Alert>
       </div>
     );
@@ -148,12 +191,12 @@ export default function DirectMessagePage() {
          <Alert variant="destructive" className="max-w-md">
            <UserCircle className="h-4 w-4" />
            <AlertTitle>User Not Found</AlertTitle>
-           <AlertDescription>
+           <UIDescription>
              The user you are trying to message could not be found.
              <div className="mt-4">
                <Button variant="outline" asChild><Link href={params.teacherId ? "/teachers" : "/chat"}>Back</Link></Button>
              </div>
-           </AlertDescription>
+           </UIDescription>
          </Alert>
        </div>
      );
@@ -162,7 +205,7 @@ export default function DirectMessagePage() {
   return (
     <div className="max-w-2xl mx-auto flex flex-col h-[calc(100vh-10rem)]">
       <Button variant="outline" asChild className="mb-4 self-start">
-        <Link href={peerUser.role === 'teacher' ? "/teachers" : "/chat"}> {/* Adjust link based on peer role */}
+        <Link href={peerUser.role === 'teacher' ? "/teachers" : "/chat"}> 
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back
         </Link>
@@ -195,10 +238,23 @@ export default function DirectMessagePage() {
                 )}
                 <div className={`p-3 rounded-lg max-w-[70%] ${msg.sender.id === user?.id ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
                   {msg.sender.id !== user?.id && <p className="text-sm font-medium">{msg.sender.name}</p>}
-                  <p className="text-sm">{msg.text}</p>
-                  <p className="text-xs text-muted-foreground/80 mt-1">
-                    {msg.timestamp && (msg.timestamp as Timestamp).toDate ? (msg.timestamp as Timestamp).toDate().toLocaleTimeString() : new Date(msg.timestamp as Date).toLocaleTimeString()}
-                  </p>
+                  <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                  <div className="text-xs text-muted-foreground/80 mt-1 flex items-center">
+                    <span>{formatTimestamp(msg.timestamp)}</span>
+                    {msg.sender.id === user?.id && msg.status === 'sending' && <Loader2 className="h-3 w-3 animate-spin inline-block ml-1" />}
+                    {msg.sender.id === user?.id && msg.status === 'failed' && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <AlertTriangle className="h-3 w-3 text-destructive inline-block ml-1 cursor-pointer" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Failed to send</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
                 </div>
                 {msg.sender.id === user?.id && (
                   <Avatar className="h-8 w-8">
@@ -219,7 +275,7 @@ export default function DirectMessagePage() {
               disabled={isSending || !threadId}
             />
             <Button type="submit" size="icon" className="bg-accent hover:bg-accent/90" disabled={isSending || !threadId || newMessage.trim() === ''}>
-              {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {isSending && messages.some(m => m.status === 'sending' && m.text === newMessage /* very basic check */) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               <span className="sr-only">Send</span>
             </Button>
           </form>

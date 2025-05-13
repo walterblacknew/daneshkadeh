@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -16,6 +17,9 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, MessageSquarePlus, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { addChatRoomToFirestore } from '@/services/firestoreChat';
+import type { ChatRoomFormData } from '@/types/chat';
+
 
 const createChatRoomSchema = z.object({
   roomName: z.string().min(3, { message: 'Room name must be at least 3 characters.' }).max(50, { message: 'Room name must be 50 characters or less.' }),
@@ -49,18 +53,40 @@ export default function CreateChatRoomPage() {
   }, [authLoading, isLoggedIn, router]);
 
   const onSubmit = async (data: CreateChatRoomFormValues) => {
+    if (!user) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to create a room.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
-    // Mock submission
-    console.log('Creating chat room:', data);
-    await new Promise(resolve => setTimeout(resolve, 1000)); 
-    
-    toast({
-      title: 'Chat Room Created (Mock)',
-      description: `Room "${data.roomName}" has been notionally created. This is a mock action.`,
-    });
-    setIsSubmitting(false);
-    // In a real app, you'd redirect to the new room or the chat list
-    router.push('/chat'); 
+    try {
+      const roomData: ChatRoomFormData = {
+        roomName: data.roomName,
+        description: data.description,
+        roomType: data.roomType,
+        enableAIAssistant: data.enableAIAssistant,
+      };
+      const roomId = await addChatRoomToFirestore(roomData, user.id);
+      
+      toast({
+        title: 'Chat Room Created!',
+        description: `Room "${data.roomName}" has been successfully created.`,
+      });
+      router.push(`/chat?roomId=${roomId}`); // Optionally redirect to the new room or chat list
+    } catch (error) {
+      console.error('Failed to create chat room:', error);
+      toast({
+        title: 'Creation Failed',
+        description: (error instanceof Error ? error.message : 'Could not create the chat room. Please try again.'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   if (authLoading || !isLoggedIn) {
@@ -142,7 +168,7 @@ export default function CreateChatRoomPage() {
                       </RadioGroup>
                     </FormControl>
                     <FormDescription>
-                      Public rooms are open to all. Private rooms require invitation or approval (feature mocked).
+                      Public rooms are open to all. Private rooms may require invitation (feature to be expanded).
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -164,7 +190,7 @@ export default function CreateChatRoomPage() {
                         Enable AI Assistant
                       </FormLabel>
                       <FormDescription>
-                        Add an AI helper to this chat room (feature mocked).
+                        Add an AI helper to this chat room (functionality to be expanded).
                       </FormDescription>
                     </div>
                   </FormItem>

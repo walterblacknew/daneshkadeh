@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -13,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, LogIn, MessageSquarePlus, ArrowLeft } from 'lucide-react';
+import { Loader2, MessageSquarePlus, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 const createChatRoomSchema = z.object({

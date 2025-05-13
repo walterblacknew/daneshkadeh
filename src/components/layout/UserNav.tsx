@@ -28,10 +28,24 @@ export default function UserNav() {
   }
 
   const getInitials = (name?: string) => {
-    if (!name) return 'U';
-    const names = name.split(' ');
-    if (names.length === 1) return names[0][0].toUpperCase();
-    return names[0][0].toUpperCase() + names[names.length - 1][0].toUpperCase();
+    if (!name || name.trim() === '') return 'U';
+
+    const validNameParts = name
+      .trim()
+      .split(/\s+/) // Split by one or more spaces
+      .filter(part => part.length > 0); // Remove any empty strings
+
+    if (validNameParts.length === 0) return 'U';
+
+    if (validNameParts.length === 1) {
+      return validNameParts[0][0].toUpperCase();
+    }
+
+    // More than one valid name part
+    return (
+      validNameParts[0][0].toUpperCase() +
+      validNameParts[validNameParts.length - 1][0].toUpperCase()
+    );
   };
 
   return (
@@ -40,7 +54,7 @@ export default function UserNav() {
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
             {/* Placeholder image, replace with actual user avatar if available */}
-            <AvatarImage src={`https://picsum.photos/seed/${user.email}/40/40`} alt={user.name || user.email} data-ai-hint="profile avatar" />
+            <AvatarImage src={user.avatar || `https://picsum.photos/seed/${user.email}/40/40`} alt={user.name || user.email} data-ai-hint="profile avatar" />
             <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
           </Avatar>
         </Button>
@@ -72,3 +86,4 @@ export default function UserNav() {
     </DropdownMenu>
   );
 }
+

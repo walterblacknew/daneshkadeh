@@ -151,7 +151,7 @@ export default function DirectMessagePage() {
            <AlertDescription>
              The user you are trying to message could not be found.
              <div className="mt-4">
-               <Button variant="outline" asChild><Link href="/teachers">Back to Teachers</Link></Button>
+               <Button variant="outline" asChild><Link href={params.teacherId ? "/teachers" : "/chat"}>Back</Link></Button>
              </div>
            </AlertDescription>
          </Alert>
@@ -180,49 +180,51 @@ export default function DirectMessagePage() {
             </div>
           </div>
         </CardHeader>
-        <ScrollArea className="flex-grow p-4 space-y-4" ref={scrollAreaRef}>
-          {messages.length === 0 && (
-            <p className="text-center text-muted-foreground">No messages yet. Say hello!</p>
-          )}
-          {messages.map((msg) => (
-            <div key={msg.id} className={`flex gap-3 my-2 ${msg.sender.id === user?.id ? 'justify-end' : ''}`}>
-              {msg.sender.id !== user?.id && (
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={msg.sender.avatar} alt={msg.sender.name} data-ai-hint="user avatar"/>
-                  <AvatarFallback>{getInitials(msg.sender.name)}</AvatarFallback>
-                </Avatar>
-              )}
-              <div className={`p-3 rounded-lg max-w-[70%] ${msg.sender.id === user?.id ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                {msg.sender.id !== user?.id && <p className="text-sm font-medium">{msg.sender.name}</p>}
-                <p className="text-sm">{msg.text}</p>
-                <p className="text-xs text-muted-foreground/80 mt-1">
-                  {msg.timestamp && (msg.timestamp as Timestamp).toDate ? (msg.timestamp as Timestamp).toDate().toLocaleTimeString() : new Date(msg.timestamp as Date).toLocaleTimeString()}
-                </p>
+        <CardContent className="flex-grow flex flex-col p-0 overflow-hidden">
+          <ScrollArea className="flex-grow p-4 space-y-4" ref={scrollAreaRef}>
+            {messages.length === 0 && (
+              <p className="text-center text-muted-foreground">No messages yet. Say hello!</p>
+            )}
+            {messages.map((msg) => (
+              <div key={msg.id} className={`flex gap-3 my-2 ${msg.sender.id === user?.id ? 'justify-end' : ''}`}>
+                {msg.sender.id !== user?.id && (
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={msg.sender.avatar} alt={msg.sender.name} data-ai-hint="user avatar"/>
+                    <AvatarFallback>{getInitials(msg.sender.name)}</AvatarFallback>
+                  </Avatar>
+                )}
+                <div className={`p-3 rounded-lg max-w-[70%] ${msg.sender.id === user?.id ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                  {msg.sender.id !== user?.id && <p className="text-sm font-medium">{msg.sender.name}</p>}
+                  <p className="text-sm">{msg.text}</p>
+                  <p className="text-xs text-muted-foreground/80 mt-1">
+                    {msg.timestamp && (msg.timestamp as Timestamp).toDate ? (msg.timestamp as Timestamp).toDate().toLocaleTimeString() : new Date(msg.timestamp as Date).toLocaleTimeString()}
+                  </p>
+                </div>
+                {msg.sender.id === user?.id && (
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={user.avatar || `https://picsum.photos/seed/${user.email}/40/40`} alt={user.name} data-ai-hint="user avatar"/>
+                    <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                  </Avatar>
+                )}
               </div>
-              {msg.sender.id === user?.id && (
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={user.avatar || `https://picsum.photos/seed/${user.email}/40/40`} alt={user.name} data-ai-hint="user avatar"/>
-                  <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
-                </Avatar>
-              )}
-            </div>
-          ))}
-        </ScrollArea>
-        <form onSubmit={handleSendMessage} className="p-4 border-t flex items-center gap-2">
-          <Input
-            type="text"
-            placeholder={`Message ${peerUser.name}...`}
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            className="flex-grow"
-            disabled={isSending || !threadId}
-          />
-          <Button type="submit" size="icon" className="bg-accent hover:bg-accent/90" disabled={isSending || !threadId || newMessage.trim() === ''}>
-            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            <span className="sr-only">Send</span>
-          </Button>
-        </form>
-      </CardContent>
+            ))}
+          </ScrollArea>
+          <form onSubmit={handleSendMessage} className="p-4 border-t flex items-center gap-2 shrink-0">
+            <Input
+              type="text"
+              placeholder={`Message ${peerUser.name}...`}
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              className="flex-grow"
+              disabled={isSending || !threadId}
+            />
+            <Button type="submit" size="icon" className="bg-accent hover:bg-accent/90" disabled={isSending || !threadId || newMessage.trim() === ''}>
+              {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              <span className="sr-only">Send</span>
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

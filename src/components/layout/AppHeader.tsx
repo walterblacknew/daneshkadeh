@@ -1,7 +1,6 @@
-
 'use client';
 
-import { Calculator, LayoutDashboard, FileText, MessageSquare, Users, Menu } from 'lucide-react';
+import { Calculator, LayoutDashboard, FileText, MessageSquare, Users, Menu, Bell } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import UserNav from './UserNav';
@@ -60,9 +59,21 @@ export default function AppHeader() {
 
         <div className="flex items-center gap-3">
           {isLoading ? (
-            <div className="h-8 w-20 animate-pulse bg-muted rounded-md"></div>
+            <div className="h-8 w-32 flex items-center gap-2">
+                <div className="h-8 w-8 animate-pulse bg-muted rounded-full"></div>
+                <div className="h-8 w-20 animate-pulse bg-muted rounded-md"></div>
+            </div>
           ) : isLoggedIn ? (
-            <UserNav />
+            <>
+              <Button variant="ghost" size="icon" className="relative">
+                <Bell className="h-5 w-5" />
+                {/* Placeholder for notification badge 
+                <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">3</span> 
+                */}
+                 <span className="sr-only">Notifications</span>
+              </Button>
+              <UserNav />
+            </>
           ) : (
             <div className="hidden md:flex items-center gap-2">
               <Button variant="ghost" asChild>
@@ -87,7 +98,7 @@ export default function AppHeader() {
                 <nav className="flex flex-col gap-4 pt-8">
                   <NavLinkItems isMobile />
                   <hr className="my-2"/>
-                  {isLoggedIn ? null : (
+                  {isLoggedIn ? null : ( // UserNav is handled outside for mobile if logged in through main header
                      <>
                       <Button variant="outline" asChild onClick={() => setMobileMenuOpen(false)}>
                         <Link href="/signin">Sign In</Link>

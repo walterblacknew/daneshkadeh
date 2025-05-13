@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -6,10 +5,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, UserCircle } from 'lucide-react';
+import { Send, UserCircle, PlusCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from 'next/link';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface Message {
   id: string;
@@ -22,6 +22,7 @@ interface Message {
   timestamp: Date;
 }
 
+// Mock data, to be replaced with actual chat room data structure
 const mockMessages: Message[] = [
   { id: '1', text: 'Hello everyone! Anyone working on calculus problems?', sender: { id: 'user1', name: 'Alice', avatar: 'https://picsum.photos/seed/alice/40/40' }, timestamp: new Date(Date.now() - 1000 * 60 * 5) },
   { id: '2', text: 'Hi Alice! I am. Stuck on derivatives.', sender: { id: 'user2', name: 'Bob', avatar: 'https://picsum.photos/seed/bob/40/40' }, timestamp: new Date(Date.now() - 1000 * 60 * 3) },
@@ -36,7 +37,6 @@ export default function ChatPage() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Scroll to bottom when new messages are added
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
     }
@@ -52,7 +52,7 @@ export default function ChatPage() {
       sender: {
         id: user.id,
         name: user.name || 'Anonymous',
-        avatar: `https://picsum.photos/seed/${user.email}/40/40`,
+        avatar: user.avatar || `https://picsum.photos/seed/${user.email}/40/40`, // Assuming user object might have avatar
       },
       timestamp: new Date(),
     };
@@ -90,50 +90,84 @@ export default function ChatPage() {
     );
   }
 
-
   return (
-    <div className="flex flex-col h-[calc(100vh-10rem)] max-w-3xl mx-auto border rounded-lg shadow-lg bg-card">
-      <header className="p-4 border-b">
-        <h1 className="text-xl font-semibold text-foreground">Community Chat Room</h1>
-      </header>
-
-      <ScrollArea className="flex-grow p-4 space-y-4" ref={scrollAreaRef}>
-        {messages.map((msg) => (
-          <div key={msg.id} className={`flex gap-3 my-2 ${msg.sender.id === user?.id ? 'justify-end' : ''}`}>
-            {msg.sender.id !== user?.id && (
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={msg.sender.avatar} alt={msg.sender.name} data-ai-hint="user avatar" />
-                <AvatarFallback>{getInitials(msg.sender.name)}</AvatarFallback>
-              </Avatar>
-            )}
-            <div className={`p-3 rounded-lg max-w-[70%] ${msg.sender.id === user?.id ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-              <p className="text-sm font-medium">{msg.sender.name}</p>
-              <p className="text-sm">{msg.text}</p>
-              <p className="text-xs text-muted-foreground/80 mt-1">{new Date(msg.timestamp).toLocaleTimeString()}</p>
-            </div>
-             {msg.sender.id === user?.id && (
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={msg.sender.avatar} alt={msg.sender.name} data-ai-hint="user avatar" />
-                <AvatarFallback>{getInitials(msg.sender.name)}</AvatarFallback>
-              </Avatar>
-            )}
+    <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-10rem)]">
+      {/* Placeholder for Chat Room List */}
+      <Card className="lg:w-1/3 hidden lg:flex flex-col">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-lg">Chat Rooms</CardTitle>
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/chat/create">
+              <PlusCircle className="h-4 w-4 mr-2" />
+              New Room
+            </Link>
+          </Button>
+        </CardHeader>
+        <CardContent className="flex-grow overflow-y-auto">
+          <div className="text-center text-muted-foreground p-4">
+            <p>Chat room listing will be available here in a future update.</p>
+            <p className="mt-2 text-sm">For now, enjoy the global community chat!</p>
           </div>
-        ))}
-      </ScrollArea>
+          {/* 
+            Example of how rooms might be listed:
+            <div className="space-y-2">
+              <Button variant="ghost" className="w-full justify-start">General Discussion</Button>
+              <Button variant="ghost" className="w-full justify-start">Calculus Help (Private)</Button>
+            </div> 
+          */}
+        </CardContent>
+      </Card>
+      
+      {/* Current Single Chat Interface */}
+      <div className="flex flex-col flex-grow h-full border rounded-lg shadow-lg bg-card">
+        <header className="p-4 border-b flex justify-between items-center">
+          <h1 className="text-xl font-semibold text-foreground">Community Chat Room</h1>
+          <Button variant="outline" size="sm" asChild className="lg:hidden">
+            <Link href="/chat/create">
+              <PlusCircle className="h-4 w-4 mr-2" />
+              New Room
+            </Link>
+          </Button>
+        </header>
 
-      <form onSubmit={handleSendMessage} className="p-4 border-t flex items-center gap-2">
-        <Input
-          type="text"
-          placeholder="Type your message..."
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          className="flex-grow"
-        />
-        <Button type="submit" size="icon" className="bg-accent hover:bg-accent/90">
-          <Send className="h-4 w-4" />
-          <span className="sr-only">Send</span>
-        </Button>
-      </form>
+        <ScrollArea className="flex-grow p-4 space-y-4" ref={scrollAreaRef}>
+          {messages.map((msg) => (
+            <div key={msg.id} className={`flex gap-3 my-2 ${msg.sender.id === user?.id ? 'justify-end' : ''}`}>
+              {msg.sender.id !== user?.id && (
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={msg.sender.avatar} alt={msg.sender.name} data-ai-hint="user avatar" />
+                  <AvatarFallback>{getInitials(msg.sender.name)}</AvatarFallback>
+                </Avatar>
+              )}
+              <div className={`p-3 rounded-lg max-w-[70%] ${msg.sender.id === user?.id ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                <p className="text-sm font-medium">{msg.sender.name}</p>
+                <p className="text-sm">{msg.text}</p>
+                <p className="text-xs text-muted-foreground/80 mt-1">{new Date(msg.timestamp).toLocaleTimeString()}</p>
+              </div>
+              {msg.sender.id === user?.id && (
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={msg.sender.avatar} alt={msg.sender.name} data-ai-hint="user avatar" />
+                  <AvatarFallback>{getInitials(msg.sender.name)}</AvatarFallback>
+                </Avatar>
+              )}
+            </div>
+          ))}
+        </ScrollArea>
+
+        <form onSubmit={handleSendMessage} className="p-4 border-t flex items-center gap-2">
+          <Input
+            type="text"
+            placeholder="Type your message..."
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            className="flex-grow"
+          />
+          <Button type="submit" size="icon" className="bg-accent hover:bg-accent/90">
+            <Send className="h-4 w-4" />
+            <span className="sr-only">Send</span>
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }

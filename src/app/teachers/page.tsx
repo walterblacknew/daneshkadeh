@@ -1,4 +1,3 @@
-
 import TeacherCard, { type Teacher } from '@/components/teachers/TeacherCard';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -13,6 +12,7 @@ const mockTeachers: Teacher[] = [
     bio: 'Passionate about making complex math accessible. PhD in Applied Mathematics with 10+ years of teaching experience at university level.',
     experience: '10+ years',
     rating: 4.9,
+    email: 'evelyn.reed@example.com',
   },
   {
     id: '2',
@@ -22,6 +22,7 @@ const mockTeachers: Teacher[] = [
     bio: 'Engaging high school math teacher focused on building strong foundational skills. Believes in a practical, problem-solving approach.',
     experience: '8 years',
     rating: 4.7,
+    email: 'samuel.green@example.com',
   },
   {
     id: '3',
@@ -31,6 +32,7 @@ const mockTeachers: Teacher[] = [
     bio: 'Friendly and patient tutor specializing in helping students overcome math anxiety. MSc in Statistics.',
     experience: '5 years',
     rating: 4.8,
+    email: 'olivia.chen@example.com',
   },
    {
     id: '4',
@@ -40,6 +42,7 @@ const mockTeachers: Teacher[] = [
     bio: 'Researcher and lecturer with a knack for explaining abstract concepts with clarity and enthusiasm. Enjoys tackling challenging problems.',
     experience: '15 years',
     rating: 4.6,
+    email: 'arthur.dent@example.com',
   },
   {
     id: '5',
@@ -49,6 +52,7 @@ const mockTeachers: Teacher[] = [
     bio: 'Dedicated to helping younger students build confidence in math. Focuses on personalized learning and making math fun.',
     experience: '6 years',
     rating: 4.9,
+    email: 'bella.swan@example.com',
   },
   {
     id: '6',
@@ -58,6 +62,7 @@ const mockTeachers: Teacher[] = [
     bio: 'An unconventional tutor who makes even the most improbable math topics seem perfectly normal. Two heads are better than one for problem-solving!',
     experience: '7 years',
     rating: 4.5,
+    email: 'zaphod.beeblebrox@example.com',
   }
 ];
 

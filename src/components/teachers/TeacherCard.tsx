@@ -1,5 +1,5 @@
-
 import Image from 'next/image';
+import Link from 'next/link';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ export interface Teacher {
   bio: string;
   experience: string;
   rating: number;
+  email?: string; // Added for mailto link
 }
 
 interface TeacherCardProps {
@@ -56,11 +57,15 @@ export default function TeacherCard({ teacher }: TeacherCardProps) {
         </p>
       </CardContent>
       <CardFooter className="p-4 border-t bg-muted/30 flex flex-col sm:flex-row gap-2">
-        <Button variant="outline" className="w-full sm:w-auto flex-1">
-          <Mail className="mr-2 h-4 w-4" /> Email
+        <Button variant="outline" className="w-full sm:w-auto flex-1" asChild>
+          <a href={`mailto:${teacher.email || 'teacher@example.com'}`}>
+            <Mail className="mr-2 h-4 w-4" /> Email
+          </a>
         </Button>
-        <Button className="w-full sm:w-auto flex-1 bg-accent hover:bg-accent/90 text-accent-foreground">
-          <MessageSquare className="mr-2 h-4 w-4" /> Message
+        <Button className="w-full sm:w-auto flex-1 bg-accent hover:bg-accent/90 text-accent-foreground" asChild>
+          <Link href={`/messages/${teacher.id}`}>
+            <MessageSquare className="mr-2 h-4 w-4" /> Message
+          </Link>
         </Button>
       </CardFooter>
     </Card>

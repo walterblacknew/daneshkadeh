@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,20 +6,57 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Loader2 } from 'lucide-react';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Badge } from '@/components/ui/badge';
+
+const profileUpdateSchema = z.object({
+  name: z.string().min(2, { message: 'Name must be at least 2 characters.' }).optional(),
+  newPassword: z.string().min(6, { message: 'New password must be at least 6 characters.' }).optional().or(z.literal('')),
+});
+
+type ProfileUpdateFormValues = z.infer<typeof profileUpdateSchema>;
 
 export default function ProfilePage() {
-  const { user, isLoading: authLoading, isLoggedIn } = useAuth();
+  const { user, isLoading: authLoading, isLoggedIn, updateProfile, isLoading: isUpdating } = useAuth();
   const router = useRouter();
+
+  const form = useForm<ProfileUpdateFormValues>({
+    resolver: zodResolver(profileUpdateSchema),
+    defaultValues: {
+      name: user?.name || '',
+      newPassword: '',
+    },
+  });
 
  useEffect(() => {
     if (!authLoading && !isLoggedIn) {
       router.replace('/signin');
     }
-  }, [authLoading, isLoggedIn, router]);
+    if (user) {
+      form.reset({ name: user.name || '', newPassword: '' });
+    }
+  }, [authLoading, isLoggedIn, router, user, form]);
 
+  const onSubmit = async (data: ProfileUpdateFormValues) => {
+    const updateData: Partial<Pick<User, 'name'>> & { newPassword?: string } = {};
+    if (data.name && data.name !== user?.name) {
+      updateData.name = data.name;
+    }
+    if (data.newPassword) {
+      updateData.newPassword = data.newPassword;
+    }
+    
+    if (Object.keys(updateData).length > 0) {
+      await updateProfile(updateData);
+      form.reset({ name: user?.name || data.name, newPassword: '' }); // Reset password field
+    }
+  };
 
   if (authLoading || !isLoggedIn || !user) {
     return (
@@ -46,22 +82,50 @@ export default function ProfilePage() {
             <AvatarFallback className="text-3xl">{getInitials(user.name)}</AvatarFallback>
           </Avatar>
           <CardTitle className="text-3xl font-bold">{user.name || 'User Profile'}</CardTitle>
+          {user.role && (
+            <Badge variant="secondary" className="mx-auto mt-1 capitalize">{user.role}</Badge>
+          )}
           <CardDescription>Manage your account settings and preferences.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
-            <Input id="name" defaultValue={user.name || ''} placeholder="Your Name" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" defaultValue={user.email} disabled />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">New Password (Optional)</Label>
-            <Input id="password" type="password" placeholder="Leave blank to keep current password" />
-          </div>
-          <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">Update Profile</Button>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel htmlFor="name">Name</FormLabel>
+                    <FormControl>
+                      <Input id="name" placeholder="Your Name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" defaultValue={user.email} disabled />
+              </div>
+              <FormField
+                control={form.control}
+                name="newPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel htmlFor="newPassword">New Password</FormLabel>
+                    <FormControl>
+                      <Input id="newPassword" type="password" placeholder="Leave blank to keep current password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" disabled={isUpdating}>
+                {isUpdating ? <Loader2 className="animate-spin mr-2" /> : null}
+                {isUpdating ? 'Updating...' : 'Update Profile'}
+              </Button>
+            </form>
+          </Form>
         </CardContent>
       </Card>
     </div>

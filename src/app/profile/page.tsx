@@ -14,6 +14,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Badge } from '@/components/ui/badge';
+import type { User } from '@/contexts/AuthContext';
 
 const profileUpdateSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }).optional(),
@@ -67,10 +68,24 @@ export default function ProfilePage() {
   }
   
   const getInitials = (name?: string) => {
-    if (!name) return 'U';
-    const names = name.split(' ');
-    if (names.length === 1) return names[0][0].toUpperCase();
-    return names[0][0].toUpperCase() + names[names.length - 1][0].toUpperCase();
+    if (!name || name.trim() === '') return 'U';
+
+    const validNameParts = name
+      .trim()
+      .split(/\s+/) // Split by one or more spaces
+      .filter(part => part.length > 0); // Remove any empty strings
+
+    if (validNameParts.length === 0) return 'U';
+
+    if (validNameParts.length === 1) {
+      return validNameParts[0][0].toUpperCase();
+    }
+
+    // More than one valid name part
+    return (
+      validNameParts[0][0].toUpperCase() +
+      validNameParts[validNameParts.length - 1][0].toUpperCase()
+    );
   };
 
   return (
@@ -78,7 +93,7 @@ export default function ProfilePage() {
       <Card className="shadow-xl">
         <CardHeader className="text-center">
           <Avatar className="w-24 h-24 mx-auto mb-4 ring-4 ring-primary ring-offset-2 ring-offset-background">
-            <AvatarImage src={`https://picsum.photos/seed/${user.email}/100/100`} alt={user.name || 'User Avatar'} data-ai-hint="profile avatar" />
+            <AvatarImage src={user.avatar || `https://picsum.photos/seed/${user.email}/100/100`} alt={user.name || 'User Avatar'} data-ai-hint="profile avatar" />
             <AvatarFallback className="text-3xl">{getInitials(user.name)}</AvatarFallback>
           </Avatar>
           <CardTitle className="text-3xl font-bold">{user.name || 'User Profile'}</CardTitle>

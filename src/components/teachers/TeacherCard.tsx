@@ -1,3 +1,4 @@
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -13,7 +14,7 @@ export interface Teacher {
   bio: string;
   experience: string;
   rating: number;
-  email?: string; // Added for mailto link
+  email?: string; 
 }
 
 interface TeacherCardProps {
@@ -63,6 +64,7 @@ export default function TeacherCard({ teacher }: TeacherCardProps) {
           </a>
         </Button>
         <Button className="w-full sm:w-auto flex-1 bg-accent hover:bg-accent/90 text-accent-foreground" asChild>
+          {/* Ensure this links to the generic peerId route for direct messaging */}
           <Link href={`/messages/${teacher.id}`}>
             <MessageSquare className="mr-2 h-4 w-4" /> Message
           </Link>

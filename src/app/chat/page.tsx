@@ -10,37 +10,33 @@ import { Send, UserCircle, PlusCircle, Loader2, MessageSquareText, Hash } from '
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { getChatRoomsFromFirestore } from '@/services/firestoreChat';
-import type { ChatRoom, Message } from '@/types/chat'; // Using Message from types/chat
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; // Removed CardDescription as it's not used directly here
+import { getChatRoomsFromFirestore, sendMessageInRoom, subscribeToRoomMessages } from '@/services/firestoreChat';
+import type { ChatRoom, Message } from '@/types/chat';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import type { Timestamp } from 'firebase/firestore';
 
-
-// Mock messages, to be replaced with Firestore messages for the selected room
-const mockMessages: Message[] = [
-  { id: '1', text: 'Hello everyone! Anyone working on calculus problems?', sender: { id: 'user1', name: 'Alice', avatar: 'https://picsum.photos/seed/alice/40/40' }, timestamp: new Date(Date.now() - 1000 * 60 * 5) },
-  { id: '2', text: 'Hi Alice! I am. Stuck on derivatives.', sender: { id: 'user2', name: 'Bob', avatar: 'https://picsum.photos/seed/bob/40/40' }, timestamp: new Date(Date.now() - 1000 * 60 * 3) },
-  { id: '3', text: 'Welcome to the MathFluent chat! Feel free to ask questions or discuss math topics.', sender: { id: 'system', name: 'MathFluent Bot', avatar: 'https://picsum.photos/seed/bot/40/40' }, timestamp: new Date(Date.now() - 1000 * 60 * 10) },
-];
-
-const COMMUNITY_CHAT_ID = 'community';
+const COMMUNITY_CHAT_ID = 'community'; // This ID should correspond to a document in Firestore if it's a real room
 const COMMUNITY_CHAT_NAME = 'Community Chat Room';
 
 export default function ChatPage() {
   const { user, isLoggedIn, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   
-  const [messages, setMessages] = useState<Message[]>(mockMessages); // Will hold messages for selected room
+  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [isSending, setIsSending] = useState(false);
 
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
   const [selectedRoom, setSelectedRoom] = useState<ChatRoom | { id: string; roomName: string } | null>({ id: COMMUNITY_CHAT_ID, roomName: COMMUNITY_CHAT_NAME });
 
+  const unsubscribeMessagesRef = useRef<(() => void) | null>(null);
+
   const fetchRooms = useCallback(async () => {
-    if (!isLoggedIn) return;
+    // No need to check isLoggedIn here, as it's handled by the main return
     setIsLoadingRooms(true);
     try {
       const rooms = await getChatRoomsFromFirestore();
@@ -55,37 +51,62 @@ export default function ChatPage() {
     } finally {
       setIsLoadingRooms(false);
     }
-  }, [isLoggedIn, toast]);
+  }, [toast]);
 
   useEffect(() => {
-    fetchRooms();
-  }, [fetchRooms]);
+    if (isLoggedIn) { // Fetch rooms only if logged in
+      fetchRooms();
+    }
+  }, [isLoggedIn, fetchRooms]);
   
+  // Subscribe to messages when selectedRoom changes
   useEffect(() => {
-    // Scroll to bottom when new messages arrive or selected room changes (if messages were fetched)
+    if (unsubscribeMessagesRef.current) {
+      unsubscribeMessagesRef.current(); // Unsubscribe from previous room
+      unsubscribeMessagesRef.current = null;
+    }
+
+    if (selectedRoom?.id && isLoggedIn) { // Check isLoggedIn here too
+      setMessages([]); // Clear previous messages
+      const unsubscribe = subscribeToRoomMessages(selectedRoom.id, (updatedMessages) => {
+        setMessages(updatedMessages);
+      });
+      unsubscribeMessagesRef.current = unsubscribe;
+    } else {
+      setMessages([]); // Clear messages if no room selected or not logged in
+    }
+
+    return () => {
+      if (unsubscribeMessagesRef.current) {
+        unsubscribeMessagesRef.current();
+      }
+    };
+  }, [selectedRoom, isLoggedIn]); // Add isLoggedIn dependency
+
+  useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
     }
-  }, [messages, selectedRoom]);
+  }, [messages]);
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newMessage.trim() === '' || !user || !selectedRoom) return;
+    if (newMessage.trim() === '' || !user || !selectedRoom || isSending) return;
 
-    const message: Message = {
-      id: Date.now().toString(),
-      roomId: selectedRoom.id,
-      text: newMessage,
-      sender: {
-        id: user.id,
-        name: user.name || 'Anonymous',
-        avatar: user.avatar || `https://picsum.photos/seed/${user.email}/40/40`,
-      },
-      timestamp: new Date(),
-    };
-    // TODO: Replace with Firestore message saving
-    setMessages(prevMessages => [...prevMessages, message]);
-    setNewMessage('');
+    setIsSending(true);
+    try {
+      await sendMessageInRoom(
+        selectedRoom.id,
+        { id: user.id, name: user.name || user.email.split('@')[0], avatar: user.avatar || `https://picsum.photos/seed/${user.email}/40/40` },
+        newMessage
+      );
+      setNewMessage('');
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      toast({ title: "Error", description: "Could not send message.", variant: "destructive" });
+    } finally {
+      setIsSending(false);
+    }
   };
   
   const getInitials = (name?: string) => {
@@ -106,7 +127,7 @@ export default function ChatPage() {
           <UserCircle className="h-4 w-4" />
           <AlertTitle>Access Denied</AlertTitle>
           <AlertDescription>
-            You need to be logged in to access the chat room.
+            You need to be logged in to access the chat.
             <div className="mt-4">
               <Button asChild>
                 <Link href="/signin">Sign In</Link>
@@ -134,9 +155,7 @@ export default function ChatPage() {
           <CardContent>
             {isLoadingRooms ? (
               <div className="space-y-2 p-2">
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-full" />
+                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
               </div>
             ) : (
               <div className="space-y-1">
@@ -168,7 +187,6 @@ export default function ChatPage() {
       <div className="flex flex-col flex-grow h-full border rounded-lg shadow-lg bg-card">
         <header className="p-4 border-b flex justify-between items-center">
           <h1 className="text-xl font-semibold text-foreground">{selectedRoom?.roomName || 'Select a Room'}</h1>
-          {/* Mobile: Room list could be a dropdown or separate view */}
           <Button variant="outline" size="sm" asChild className="lg:hidden">
             <Link href="/chat/create">
               <PlusCircle className="h-4 w-4 mr-2" />
@@ -184,7 +202,11 @@ export default function ChatPage() {
         ) : (
           <>
             <ScrollArea className="flex-grow p-4 space-y-4" ref={scrollAreaRef}>
-              {/* TODO: Fetch and display messages for selectedRoom.id */}
+              {messages.length === 0 && (
+                <div className="text-center text-muted-foreground p-8">
+                  No messages in this room yet. Start the conversation!
+                </div>
+              )}
               {messages.map((msg) => (
                 <div key={msg.id} className={`flex gap-3 my-2 ${msg.sender.id === user?.id ? 'justify-end' : ''}`}>
                   {msg.sender.id !== user?.id && (
@@ -194,23 +216,20 @@ export default function ChatPage() {
                     </Avatar>
                   )}
                   <div className={`p-3 rounded-lg max-w-[70%] ${msg.sender.id === user?.id ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                    <p className="text-sm font-medium">{msg.sender.name}</p>
+                    {msg.sender.id !== user?.id && <p className="text-sm font-medium">{msg.sender.name}</p>}
                     <p className="text-sm">{msg.text}</p>
-                    <p className="text-xs text-muted-foreground/80 mt-1">{new Date(msg.timestamp as Date).toLocaleTimeString()}</p>
+                    <p className="text-xs text-muted-foreground/80 mt-1">
+                       {msg.timestamp && (msg.timestamp as Timestamp).toDate ? (msg.timestamp as Timestamp).toDate().toLocaleTimeString() : new Date(msg.timestamp as Date).toLocaleTimeString()}
+                    </p>
                   </div>
                   {msg.sender.id === user?.id && (
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={msg.sender.avatar} alt={msg.sender.name} data-ai-hint="user avatar"/>
-                      <AvatarFallback>{getInitials(msg.sender.name)}</AvatarFallback>
+                      <AvatarImage src={user.avatar || `https://picsum.photos/seed/${user.email}/40/40`} alt={user.name} data-ai-hint="user avatar"/>
+                      <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
                     </Avatar>
                   )}
                 </div>
               ))}
-               {messages.length === 0 && (
-                <div className="text-center text-muted-foreground p-8">
-                  No messages in this room yet. Start the conversation!
-                </div>
-              )}
             </ScrollArea>
 
             <form onSubmit={handleSendMessage} className="p-4 border-t flex items-center gap-2">
@@ -220,10 +239,10 @@ export default function ChatPage() {
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 className="flex-grow"
-                disabled={!selectedRoom}
+                disabled={!selectedRoom || isSending}
               />
-              <Button type="submit" size="icon" className="bg-accent hover:bg-accent/90" disabled={!selectedRoom || newMessage.trim() === ''}>
-                <Send className="h-4 w-4" />
+              <Button type="submit" size="icon" className="bg-accent hover:bg-accent/90" disabled={!selectedRoom || newMessage.trim() === '' || isSending}>
+                {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" /> }
                 <span className="sr-only">Send</span>
               </Button>
             </form>

@@ -1,5 +1,5 @@
 
-import type { Timestamp } from 'firebase/firestore';
+import type { Timestamp, FieldValue } from 'firebase/firestore';
 
 export interface ChatRoomFormData {
   roomName: string;
@@ -11,19 +11,30 @@ export interface ChatRoomFormData {
 export interface ChatRoom extends ChatRoomFormData {
   id: string; // Firestore document ID
   createdBy: string; // User ID of the creator
-  createdAt: Timestamp; // Firestore Timestamp
+  createdAt: Timestamp | FieldValue; // Firestore Timestamp or FieldValue for server timestamp
   members: string[]; // Array of user IDs who are members
 }
 
-// Existing Message interface from chat page, potentially to be expanded
-export interface Message {
+export interface MessageSender {
   id: string;
-  roomId?: string; // To associate message with a room
-  text: string;
-  sender: {
-    id: string;
-    name: string;
-    avatar?: string;
-  };
-  timestamp: Date | Timestamp; // Can be JS Date or Firestore Timestamp
+  name: string;
+  avatar?: string;
 }
+
+export interface Message {
+  id: string; // Firestore document ID or client-generated for display
+  text: string;
+  sender: MessageSender;
+  timestamp: Timestamp | FieldValue; // Firestore Timestamp or FieldValue for server timestamp
+  roomId?: string; // For group chat messages
+  dmThreadId?: string; // For direct messages
+}
+
+export interface PeerUser {
+  id: string;
+  name?: string;
+  email: string;
+  avatar?: string; // Optional: Construct from picsum or if stored
+  role?: 'student' | 'teacher';
+}
+
